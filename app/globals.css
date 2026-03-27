@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+/* ── Custom design tokens ── */
+:root {
+  --gold: #c9a84c;
+  --ink: #1a1a1a;
+  --paper: #f8f5f0;
+  --muted: #6b6b6b;
+}
+
+@theme inline {
+  --color-background: #0a0a0a;
+  --color-foreground: #ededed;
+}
+
+/* ── Base ── */
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  background: #0a0a0a;
+  color: #ededed;
+}
+
+/* ── Tailwind custom utilities ── */
+@layer utilities {
+  .text-gold    { color: var(--gold); }
+  .text-ink     { color: var(--ink); }
+  .text-muted   { color: var(--muted); }
+  .bg-gold      { background-color: var(--gold); }
+  .bg-ink       { background-color: var(--ink); }
+  .bg-paper     { background-color: var(--paper); }
+  .border-gold  { border-color: var(--gold); }
+  .font-display { font-family: 'Playfair Display', 'Georgia', 'Times New Roman', serif; }
+}
+
+/* ── Page base styles (react-pageflip children) ── */
+.page {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+  background: var(--paper);
+}
+
+.page-cover  { background: var(--ink); }
+.page-paper  { background: var(--paper); }
+
+/* ── Book drop shadow ── */
+.book-wrapper {
+  filter:
+    drop-shadow(0 40px 80px rgba(0, 0, 0, 0.8))
+    drop-shadow(0 8px 24px rgba(0, 0, 0, 0.6));
+}
+
+/* ── Subtle spotlight on the dark surround ── */
+.spotlight {
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 48%, rgba(201, 168, 76, 0.05) 0%, transparent 70%),
+    #0a0a0a;
+}
