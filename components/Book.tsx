@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useRef, useState, useCallback } from 'react';
-import HTMLFlipBook from 'react-pageflip';
+import React, { useState, useCallback } from 'react';
 import CoverPage from './CoverPage';
 import IntroPage from './IntroPage';
 import RoomImagePage from './RoomImagePage';
@@ -11,104 +10,150 @@ import LocationPage from './LocationPage';
 import BackCoverPage from './BackCoverPage';
 import { rooms } from '@/data/property';
 
-const TOTAL_PAGES = 14; // cover + intro + (5 rooms × 2) + floorplan × 2 + location × 2 + back cover
+type Page = React.ReactElement;
+
+function buildPages(): Page[] {
+  const pages: Page[] = [];
+  pages.push(<CoverPage key="cover" />);
+  pages.push(<div key="blank" className="page page-paper" />);
+  pages.push(<IntroPage key="intro" />);
+  rooms.forEach((room, i) => {
+    pages.push(<RoomImagePage key={`img-${i}`} image={room.image} name={room.name} />);
+    pages.push(
+      <RoomTextPage
+        key={`txt-${i}`}
+        name={room.name}
+        area={room.area}
+        description={room.description}
+        pageNum={String(i + 2).padStart(2, '0')}
+      />
+    );
+  });
+  pages.push(<FloorPlanPage key="fp-l" side="left" />);
+  pages.push(<FloorPlanPage key="fp-r" side="right" />);
+  pages.push(<LocationPage key="loc-l" side="left" />);
+  pages.push(<LocationPage key="loc-r" side="right" />);
+  pages.push(<BackCoverPage key="back" />);
+  return pages;
+}
+
+const PAGES = buildPages();
+// spreads: cover alone, then pairs, back cover alone
+function getSpreads() {
+  const spreads: [number, number | null][] = [];
+  spreads.push([0, null]); // cover
+  for (let i = 1; i < PAGES.length - 1; i += 2) {
+    spreads.push([i, i + 1 < PAGES.length - 1 ? i + 1 : null]);
+  }
+  spreads.push([PAGES.length - 1, null]); // back cover
+  return spreads;
+}
+
+const SPREADS = getSpreads();
 
 export default function Book() {
-  const bookRef = useRef<any>(null);
-  const [currentPage, setCurrentPage] = useState(0);
+  const [spread, setSpread] = useState(0);
+  const [flipping, setFlipping] = useState<'forward' | 'backward' | null>(null);
 
-  const onFlip = useCallback((e: any) => {
-    setCurrentPage(e.data);
-  }, []);
+  const goNext = useCallback(() => {
+    if (spread >= SPREADS.length - 1 || flipping) return;
+    setFlipping('forward');
+    setTimeout(() => {
+      setSpread((s) => s + 1);
+      setFlipping(null);
+    }, 500);
+  }, [spread, flipping]);
 
-  const prevPage = () => bookRef.current?.pageFlip()?.flipPrev();
-  const nextPage = () => bookRef.current?.pageFlip()?.flipNext();
+  const goPrev = useCallback(() => {
+    if (spread <= 0 || flipping) return;
+    setFlipping('backward');
+    setTimeout(() => {
+      setSpread((s) => s - 1);
+      setFlipping(null);
+    }, 500);
+  }, [spread, flipping]);
 
-  const roomPageNums = ['02', '03', '04', '05', '06', '07'];
+  const [leftIdx, rightIdx] = SPREADS[spread];
+  const isCover = spread === 0;
+  const isBack = spread === SPREADS.length - 1;
 
   return (
-    <div className="flex flex-col items-center gap-6">
-      {/* Book + nav arrows */}
+    <div className="flex flex-col items-center gap-6 select-none">
       <div className="flex items-center gap-4">
-        {/* Prev arrow */}
+        {/* Prev */}
         <button
-          onClick={prevPage}
-          disabled={currentPage === 0}
+          onClick={goPrev}
+          disabled={spread === 0 || !!flipping}
           aria-label="Previous page"
-          className="group flex items-center justify-center w-10 h-10 rounded-full border border-white/20 text-white/50 hover:border-gold hover:text-gold transition-all disabled:opacity-20 disabled:cursor-not-allowed"
+          className="flex items-center justify-center w-10 h-10 rounded-full border border-white/20 text-white/50 hover:border-gold hover:text-gold transition-all disabled:opacity-20 disabled:cursor-not-allowed"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
 
-        {/* The book */}
-        <div className="book-wrapper shadow-2xl">
-          {/* @ts-ignore — react-pageflip types are loose */}
-          <HTMLFlipBook
-            ref={bookRef}
-            width={420}
-            height={560}
-            size="fixed"
-            minWidth={280}
-            maxWidth={600}
-            showCover={true}
-            mobileScrollSupport={true}
-            onFlip={onFlip}
-            className=""
-            style={{}}
-            startPage={0}
-            drawShadow={true}
-            flippingTime={700}
-            usePortrait={false}
-            startZIndex={0}
-            autoSize={false}
-            clickEventForward={true}
-            useMouseEvents={true}
-            swipeDistance={30}
-            showPageCorners={true}
-            disableFlipByClick={false}
-            maxShadowOpacity={0.4}
+        {/* Book */}
+        <div
+          className="relative overflow-hidden rounded-sm"
+          style={{
+            width: isCover || isBack ? 420 : 840,
+            height: 560,
+            boxShadow: '0 40px 80px rgba(0,0,0,0.8), 0 8px 24px rgba(0,0,0,0.6)',
+            transition: 'width 0.4s ease',
+          }}
+        >
+          {/* Spine line for spreads */}
+          {!isCover && !isBack && (
+            <div
+              className="absolute inset-y-0 pointer-events-none z-10"
+              style={{
+                left: '50%',
+                width: 2,
+                background: 'linear-gradient(to right, rgba(0,0,0,0.18), rgba(0,0,0,0.06), rgba(0,0,0,0.18))',
+              }}
+            />
+          )}
+
+          {/* Flip animation overlay */}
+          {flipping && (
+            <div
+              className="absolute inset-0 z-20 pointer-events-none"
+              style={{
+                background: 'linear-gradient(to right, transparent 40%, rgba(0,0,0,0.08) 50%, transparent 60%)',
+                animation: `pageSweep 0.5s ease-in-out`,
+              }}
+            />
+          )}
+
+          {/* Left page */}
+          {!isCover && !isBack && leftIdx !== null && (
+            <div
+              className="absolute top-0 left-0 h-full"
+              style={{ width: '50%' }}
+            >
+              {PAGES[leftIdx]}
+            </div>
+          )}
+
+          {/* Right page or single cover/back */}
+          <div
+            className="absolute top-0 h-full"
+            style={
+              isCover || isBack
+                ? { left: 0, width: '100%' }
+                : { left: '50%', width: '50%' }
+            }
           >
-            {/* 1 - Front cover (single page) */}
-            <CoverPage />
-
-            {/* 2 - Intro spread: blank left + intro right */}
-            <div className="page page-paper" />
-            <IntroPage />
-
-            {/* 3-12 — Rooms (image left, text right) */}
-            {rooms.map((room, i) => (
-              <React.Fragment key={room.name}>
-                <RoomImagePage image={room.image} name={room.name} />
-                <RoomTextPage
-                  name={room.name}
-                  area={room.area}
-                  description={room.description}
-                  pageNum={roomPageNums[i] ?? ''}
-                />
-              </React.Fragment>
-            ))}
-
-            {/* 13-14 — Floor plan spread */}
-            <FloorPlanPage side="left" />
-            <FloorPlanPage side="right" />
-
-            {/* 15-16 — Location spread */}
-            <LocationPage side="left" />
-            <LocationPage side="right" />
-
-            {/* 17 - Back cover (single page) */}
-            <BackCoverPage />
-          </HTMLFlipBook>
+            {rightIdx !== null ? PAGES[rightIdx] : isCover ? PAGES[leftIdx] : PAGES[leftIdx]}
+          </div>
         </div>
 
-        {/* Next arrow */}
+        {/* Next */}
         <button
-          onClick={nextPage}
-          disabled={currentPage >= TOTAL_PAGES - 1}
+          onClick={goNext}
+          disabled={spread === SPREADS.length - 1 || !!flipping}
           aria-label="Next page"
-          className="group flex items-center justify-center w-10 h-10 rounded-full border border-white/20 text-white/50 hover:border-gold hover:text-gold transition-all disabled:opacity-20 disabled:cursor-not-allowed"
+          className="flex items-center justify-center w-10 h-10 rounded-full border border-white/20 text-white/50 hover:border-gold hover:text-gold transition-all disabled:opacity-20 disabled:cursor-not-allowed"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -117,22 +162,35 @@ export default function Book() {
       </div>
 
       {/* Page indicator */}
-      <div className="flex items-center gap-3">
-        <span className="text-[9px] tracking-[0.3em] text-white/30 uppercase">
-          {currentPage === 0
-            ? 'Cover'
-            : currentPage >= TOTAL_PAGES - 1
-            ? 'Back Cover'
-            : `Page ${currentPage} of ${TOTAL_PAGES - 2}`}
-        </span>
+      <div className="flex items-center gap-2">
+        {SPREADS.map((_, i) => (
+          <button
+            key={i}
+            onClick={() => !flipping && setSpread(i)}
+            className="transition-all rounded-full"
+            style={{
+              width: i === spread ? 20 : 6,
+              height: 6,
+              background: i === spread ? '#c9a84c' : 'rgba(255,255,255,0.2)',
+            }}
+          />
+        ))}
       </div>
 
-      {/* Hint */}
-      {currentPage === 0 && (
+      {spread === 0 && (
         <p className="text-[9px] tracking-[0.25em] text-white/20 uppercase animate-pulse">
-          Click the edge or drag to turn pages
+          Click arrows or dots to turn pages
         </p>
       )}
+
+      <style>{`
+        @keyframes pageSweep {
+          0%   { opacity: 0; }
+          30%  { opacity: 1; }
+          70%  { opacity: 1; }
+          100% { opacity: 0; }
+        }
+      `}</style>
     </div>
   );
 }
